@@ -1,3 +1,10 @@
+'''
+Project : Noz'Num
+Description : A simple interactive application to display a map with a marker and graphs with the data from a tcx file
+
+Author : Lucas BRAND
+'''
+
 import folium
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
