@@ -1,4 +1,4 @@
-name: nozbreizh
+name: noznum_env
 channels:
   - defaults
 dependencies:
