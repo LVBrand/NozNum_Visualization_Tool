@@ -1,6 +1,7 @@
 # NozNum_Visualization_Tool
-Interactive Visualization Tool for Fit-bit Watch data.
-Author : Lucas Brand (github.com/LVBrand)
+Interactive Visualization Tool for Fit-bit Watch data.  
+**Author** : Lucas Brand ([github.com/LVBrand](https://github.com/LVBrand))  
+**Organizations** : Université de Bretagne Occidentale ([UBO - Chaire Noz'Breizh](https://nouveau.univ-brest.fr/chaire-noz-breizh/fr)) **;** Centre Européen de Réalité Virtuelle ([CERV](https://cerv.enib.fr))
 
 # Description
 This is a simple interactive application that displays a map and plots from data collected from a connected watch (Fit-bit Watch) datafile (.tcx file).
