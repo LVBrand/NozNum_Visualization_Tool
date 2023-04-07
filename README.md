@@ -41,7 +41,7 @@ Then, a dialog window will appear as shown on the picture bellow and you'll have
 ### 4. Visualize the data
 The picture bellow shows what the window will look like after you've successfully loaded your data.  
 ![](images/step_5.png)  
-The first part of the application is dedicated to the Folium Map generated from OpenStreetMap.  
+The first part of the application is dedicated to the Folium Map generated from OpenStreetMap. It creates a route from the GPS data collected from the smartwatch and automatically plots it to a folium map. The application automatically centers the map so we can see the whole route.  
 On the right side of the map, you can use the cursor to manage the zoom level of the map. It is, by default, set to *13*.  
 Beneath the map, two plots are generated :
 - The first curve (red) represents the heart rate (in bpm) as a function of time (seconds).
