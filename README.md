@@ -45,7 +45,8 @@ The first part of the application is dedicated to the Folium Map generated from 
 On the right side of the map, you can use the cursor to manage the zoom level of the map. It is, by default, set to *13*.  
 Beneath the map, two plots are generated :
 - The first curve (red) represents the heart rate (in bpm) as a function of time (seconds).
-- The second curve (blue) represents the altitude (meters) as a function of time (seconds).
+- The second curve (blue) represents the altitude (meters) as a function of time (seconds).  
+You can also click on any dots of the curves and it will quickly reload the map and create a marker on the position corresponding to the data dot you've clicked on.
 
 
 # Installation 
