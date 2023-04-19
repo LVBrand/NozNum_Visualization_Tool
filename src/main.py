@@ -18,6 +18,8 @@ import matplotlib
 matplotlib.use('Qt5Agg')
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
+import numpy as np
+import mplcursors
 
 
 ##~##~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##
@@ -166,7 +168,17 @@ class MplCanvas(FigureCanvasQTAgg):
         # self.x = self.data.df[x]
         # self.y = self.data.df[y]
         self.axes.plot(self.x, self.y, self.line_color, picker=5)
+        #mplcursors.cursor(self.axes, hover=True)
         self.fig.canvas.mpl_connect('pick_event', self.onClick)
+        self.cursor = mplcursors.cursor(self.axes, hover=True)
+        self.cursor.connect('add', self.show_annotation)
+
+    def show_annotation(self, sel):
+        xi = sel.target[0]
+        vertical_line = self.axes.axvline(xi, color='red', ls=':', lw=1)
+        sel.extras.append(vertical_line)
+        annotation_str = f'Time: {self.data.dt[xi]} seconds\nHeart rate: {self.data.hr[xi]} bpm\nAltitude: {self.data.alt[xi]} meters'
+        sel.annotation.set_text(annotation_str)
 
     def onClick(self, event):
         ind = event.ind[0]
@@ -178,6 +190,7 @@ class MplCanvas(FigureCanvasQTAgg):
         print(f"Heart rate is {point_hr} bpm at time {point_dt} seconds")
         print(f"Altitude is {point_alt} meters at time {point_dt} seconds")
         self.map_instance.update_map(self.data, zoom_level=self.zoom_slider_instance.slider.value())
+
 
 
 ##~##~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##
@@ -215,6 +228,16 @@ class SliderWidget(QWidget):
         size = self.slider.value()
         self.label.setText(str(size))
         self.map_instance.update_map(self.data, size)
+
+
+class DataLabel(QWidget):
+    def __init__(self, plot_instance=None):
+        super().__init__()
+        self.plot_instance = plot_instance
+        
+
+
+
 
 
 ##~##~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##
