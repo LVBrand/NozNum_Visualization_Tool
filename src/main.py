@@ -15,6 +15,7 @@ import time
 from datetime import timedelta
 import pandas as pd
 import matplotlib
+import matplotlib.pyplot as plt
 matplotlib.use('Qt5Agg')
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
@@ -153,7 +154,7 @@ class MapWidget(QWebEngineView):
 ##~##~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##
 
 class MplCanvas(FigureCanvasQTAgg):
-    def __init__(self, parent=None, width=5, height=4, dpi=100, map_instance=None, zoom_slider_instance=None, data=None, x='lon',y='lat', x_label='Longitude (degrees °)', y_label='Latitude (degrees °)', line_color='-ro'):
+    def __init__(self, parent=None, width=5, height=4, dpi=100, map_instance=None, zoom_slider_instance=None, data=None, x='lon',y='lat', x_label='Longitude (degrees °)', y_label='Latitude (degrees °)', line_color='-ro', last_clicks_array=None, waiting_for_clicks=False, file_name=None):
         self.fig = Figure(figsize=(width, height), dpi=dpi)
         self.axes = self.fig.add_subplot(111)
         super(MplCanvas, self).__init__(self.fig)
@@ -165,13 +166,21 @@ class MplCanvas(FigureCanvasQTAgg):
         self.y = AxesNames(self.data, y)
         self.axes.set_xlabel(x_label)
         self.axes.set_ylabel(y_label)
+
+        self.file_name = file_name
+        self.clicks_count = 0
+
+        self.last_clicks_array = last_clicks_array
+        self.waiting_for_clicks = waiting_for_clicks
+
         # self.x = self.data.df[x]
         # self.y = self.data.df[y]
         self.axes.plot(self.x, self.y, self.line_color, picker=5)
         #mplcursors.cursor(self.axes, hover=True)
-        self.fig.canvas.mpl_connect('pick_event', self.onClick)
+        self.fig.canvas.mpl_connect('pick_event', self.on_click)
         self.cursor = mplcursors.cursor(self.axes, hover=True)
         self.cursor.connect('add', self.show_annotation)
+        self.clickable_bool = True # Set to False to disable the clickable points
 
     def show_annotation(self, sel):
         xi = sel.target[0]
@@ -184,17 +193,39 @@ class MplCanvas(FigureCanvasQTAgg):
         #annotation_str = f'Time: {self.data.dt[xi]} seconds\nHeart rate: {self.data.hr[xi]} bpm\nAltitude: {self.data.alt[xi]} meters'
         sel.annotation.set_text(annotation_str)
 
-    def onClick(self, event):
-        ind = event.ind[0]
-        self.data.marker_coord = [self.data.lat[ind], self.data.lon[ind]]
-        point_hr = self.data.hr[ind]
-        point_alt = self.data.alt[ind]
-        point_dt = self.data.dt[ind]
-        print(f"Clicked on point {self.data.marker_coord}")
-        print(f"Heart rate is {point_hr} bpm at time {point_dt} seconds")
-        print(f"Altitude is {point_alt} meters at time {point_dt} seconds")
-        self.map_instance.update_map(self.data, zoom_level=self.zoom_slider_instance.slider.value())
+    def on_click(self, event):
+        if self.clickable_bool:
+            ind = event.ind[0]
+            self.data.marker_coord = [self.data.lat[ind], self.data.lon[ind]]
+            point_hr = self.data.hr[ind]
+            point_alt = self.data.alt[ind]
+            point_dt = self.data.dt[ind]
+            print(f"Clicked on point {self.data.marker_coord}")
+            # print(f"Heart rate is {point_hr} bpm at time {point_dt} seconds")
+            # print(f"Altitude is {point_alt} meters at time {point_dt} seconds")
+            self.map_instance.update_map(self.data, zoom_level=self.zoom_slider_instance.slider.value())
 
+            if (self.waiting_for_clicks == True):
+                print("got a click")
+                self.last_clicks_array.append(ind)
+                self.clicks_count += 1
+                if self.clicks_count == 2:
+                    print("Got two clicks")
+                    self.waiting_for_clicks = False
+                    self.clicks_count = 0
+                    print('last_clicks_array: ', self.last_clicks_array)
+                    self.save_selected_points_to_csv(id_1=self.last_clicks_array[0], id_2=self.last_clicks_array[1])
+                    return self.last_clicks_array
+    
+    def save_selected_points_to_csv(self, id_1, id_2):
+        print('Saving data to csv')
+        # Make a subdataframe with the data between the two selected points of the main dataframe 
+        sub_data = self.data.df.loc[id_1:id_2]
+        print("SUB DATA: \n", sub_data)
+        df = pd.DataFrame(sub_data)
+        df['label'] = self.file_name
+        df.to_csv(self.file_name+'.csv') # Save the subdataframe to a csv file
+                    
 
 
 ##~##~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##
@@ -242,10 +273,17 @@ class SliderWidget(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.initUI()
+        self.next_data_label = None
+        self.last_clicks_array = []
+        self.waiting_for_clicks = False
+
+    def initUI(self):
         self.setWindowTitle('Noz-Num Interactive Map')
         self.window_width, self.window_height = 1280, 720
         self.setMinimumSize(self.window_width, self.window_height)
         self.showMaximized()
+
 
         # central widget
         self.central_widget = QWidget()
@@ -270,6 +308,30 @@ class MainWindow(QMainWindow):
         main_menu = self.menuBar()
         file_menu = main_menu.addMenu('&Load Data')
         file_menu.addAction(load_button_action)
+
+    # Opens a popup window
+    def open_popup(self):
+        popup = QDialog(self)
+        popup.setWindowTitle("Enter Data Label")
+        popup.setGeometry(200, 200, 200, 200)
+
+        # Add a line edit widget for text input
+        self.lineEdit = QLineEdit(popup)
+        self.lineEdit.setGeometry(10, 10, 180, 30)
+
+        # Add a confirm button to close the popup and return the text
+        confirmButton = QPushButton("Confirm", popup)
+        confirmButton.setGeometry(10, 50, 180, 30)
+        confirmButton.clicked.connect(lambda: self.on_confirm(popup))
+        confirmButton.clicked.connect(lambda: self.wait_for_two_clicks(self.next_data_label))
+        popup.exec_()
+
+    def on_confirm(self, popup):
+        # Get the input text from the line edit widget
+        self.next_data_label = self.lineEdit.text()
+        print("Input Text:", self.next_data_label) # Print the input text to the terminal
+        popup.close() # Close the popup window
+        return self.next_data_label
 
     # Open a dialog to load .tcx data file
     def dialog(self): # technically updates Data class
@@ -300,11 +362,33 @@ class MainWindow(QMainWindow):
     
     # Generate two plots objects and add them to their layout
     def plot_data(self, data, layout, web_view, zoom_slider):
-        self.plot_hr = MplCanvas(self, width=5, height=4, dpi=100, map_instance=web_view, data=data, zoom_slider_instance=zoom_slider, x='dt', y='hr', x_label='Time (seconds)', y_label='Heart Rate (bpm)', line_color='-ro')
-        self.plot_alt = MplCanvas(self, width=5, height=4, dpi=100, map_instance=web_view, data=data, zoom_slider_instance=zoom_slider, x='dt', y='alt', x_label='Time (seconds)', y_label='Altitude (meters)', line_color='-bo')
-        layout.addWidget(self.plot_hr) # plot layout
-        layout.addWidget(self.plot_alt) # plot layout
+        self.plot_hr = MplCanvas(self, width=5, height=4, dpi=100, map_instance=web_view, data=data, zoom_slider_instance=zoom_slider, x='dt', y='hr', x_label='Time (seconds)', y_label='Heart Rate (bpm)', line_color='-ro', last_clicks_array=self.last_clicks_array, waiting_for_clicks=self.waiting_for_clicks, file_name=self.next_data_label)
+        self.plot_alt = MplCanvas(self, width=5, height=4, dpi=100, map_instance=web_view, data=data, zoom_slider_instance=zoom_slider, x='dt', y='alt', x_label='Time (seconds)', y_label='Altitude (meters)', line_color='-bo', last_clicks_array=self.last_clicks_array, waiting_for_clicks=self.waiting_for_clicks, file_name=self.next_data_label)
+        
+        self.select_data_button = QPushButton('Select Data From Plot')
+        self.select_data_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
+        self.select_data_button.clicked.connect(self.open_popup)
+
+        sub_layout = QHBoxLayout()
+        sub_layout.addWidget(self.plot_hr)
+        sub_layout.addWidget(self.plot_alt)
+        layout.addLayout(sub_layout)
+        layout.addWidget(self.select_data_button)
+
         return self.plot_hr, self.plot_alt
+    
+    # Wait for two clicks on the plots
+    def wait_for_two_clicks(self, file_name):
+        print('waiting for two clicks')
+        self.last_clicks_array = []
+        self.waiting_for_clicks = True
+        self.plot_hr.waiting_for_clicks = True
+        self.plot_alt.waiting_for_clicks = True
+        self.plot_hr.file_name = file_name
+        self.plot_alt.file_name = file_name
+        self.plot_hr.last_clicks_array = self.last_clicks_array
+        self.plot_alt.last_clicks_array = self.last_clicks_array
+
 
     # Removes widgets from a layout. Used to clear old widgets when we load new data
     def remove_widgets_from_layout(self, layout):
