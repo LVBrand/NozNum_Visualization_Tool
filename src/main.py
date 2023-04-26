@@ -385,7 +385,6 @@ class MainWindow(QMainWindow):
         self.plot_hr.last_clicks_array = self.last_clicks_array
         self.plot_alt.last_clicks_array = self.last_clicks_array
 
-
     # Removes widgets from a layout. Used to clear old widgets when we load new data
     def remove_widgets_from_layout(self, layout):
         if layout is not None:
