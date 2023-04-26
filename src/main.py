@@ -95,6 +95,7 @@ def AxesNames(data, ax):
         return 0
     
 
+
 ##~##~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##
 #~##~~ DATA CLASS ~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##
 ##~##~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##
@@ -168,13 +169,9 @@ class MplCanvas(FigureCanvasQTAgg):
         self.axes.set_ylabel(y_label)
 
         self.file_name = file_name
-        self.clicks_count = 0
-
         self.last_clicks_array = last_clicks_array
         self.waiting_for_clicks = waiting_for_clicks
 
-        # self.x = self.data.df[x]
-        # self.y = self.data.df[y]
         self.axes.plot(self.x, self.y, self.line_color, picker=5)
         #mplcursors.cursor(self.axes, hover=True)
         self.fig.canvas.mpl_connect('pick_event', self.on_click)
@@ -182,6 +179,7 @@ class MplCanvas(FigureCanvasQTAgg):
         self.cursor.connect('add', self.show_annotation)
         self.clickable_bool = True # Set to False to disable the clickable points
 
+    # Hover annotation function
     def show_annotation(self, sel):
         xi = sel.target[0]
         vertical_line = self.axes.axvline(xi, color='red', ls=':', lw=1)
@@ -193,6 +191,7 @@ class MplCanvas(FigureCanvasQTAgg):
         #annotation_str = f'Time: {self.data.dt[xi]} seconds\nHeart rate: {self.data.hr[xi]} bpm\nAltitude: {self.data.alt[xi]} meters'
         sel.annotation.set_text(annotation_str)
 
+    # Function to click on a point and get its data
     def on_click(self, event):
         if self.clickable_bool:
             ind = event.ind[0]
@@ -208,25 +207,23 @@ class MplCanvas(FigureCanvasQTAgg):
             if (self.waiting_for_clicks == True):
                 print("got a click")
                 self.last_clicks_array.append(ind)
-                self.clicks_count += 1
-                if self.clicks_count == 2:
+                if len(self.last_clicks_array) == 2:
                     print("Got two clicks")
                     self.waiting_for_clicks = False
-                    self.clicks_count = 0
                     print('last_clicks_array: ', self.last_clicks_array)
                     self.save_selected_points_to_csv(id_1=self.last_clicks_array[0], id_2=self.last_clicks_array[1])
                     return self.last_clicks_array
     
+    # saves the data between the two selected point to a pandas dataframe then to a csv file
     def save_selected_points_to_csv(self, id_1, id_2):
         print('Saving data to csv')
         # Make a subdataframe with the data between the two selected points of the main dataframe 
-        sub_data = self.data.df.loc[id_1:id_2]
-        print("SUB DATA: \n", sub_data)
+        sub_data = self.data.df.loc[id_1:id_2] 
         df = pd.DataFrame(sub_data)
         df['label'] = self.file_name
+        print("Selected Dataframe: \n", df)
         df.to_csv(self.file_name+'.csv') # Save the subdataframe to a csv file
                     
-
 
 ##~##~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##
 #~##~~ SLIDER CLASS ~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##
@@ -265,7 +262,6 @@ class SliderWidget(QWidget):
         self.map_instance.update_map(self.data, size)
 
 
-
 ##~##~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##
 #~##~~ MAIN WINDOW CLASS ~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##
 ##~##~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##
@@ -282,8 +278,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle('Noz-Num Interactive Map')
         self.window_width, self.window_height = 1280, 720
         self.setMinimumSize(self.window_width, self.window_height)
-        self.showMaximized()
-
+        # self.showMaximized()
 
         # central widget
         self.central_widget = QWidget()
@@ -313,19 +308,20 @@ class MainWindow(QMainWindow):
     def open_popup(self):
         popup = QDialog(self)
         popup.setWindowTitle("Enter Data Label")
-        popup.setGeometry(200, 200, 200, 200)
+        popup.setGeometry(200, 200, 400, 100)
 
         # Add a line edit widget for text input
         self.lineEdit = QLineEdit(popup)
-        self.lineEdit.setGeometry(10, 10, 180, 30)
+        self.lineEdit.setGeometry(10, 10, 380, 30)
 
         # Add a confirm button to close the popup and return the text
         confirmButton = QPushButton("Confirm", popup)
-        confirmButton.setGeometry(10, 50, 180, 30)
+        confirmButton.setGeometry(10, 50, 200, 30)
         confirmButton.clicked.connect(lambda: self.on_confirm(popup))
         confirmButton.clicked.connect(lambda: self.wait_for_two_clicks(self.next_data_label))
         popup.exec_()
 
+    # Confirm button callback function
     def on_confirm(self, popup):
         # Get the input text from the line edit widget
         self.next_data_label = self.lineEdit.text()
@@ -369,7 +365,7 @@ class MainWindow(QMainWindow):
         self.select_data_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
         self.select_data_button.clicked.connect(self.open_popup)
 
-        sub_layout = QHBoxLayout()
+        sub_layout = QVBoxLayout()
         sub_layout.addWidget(self.plot_hr)
         sub_layout.addWidget(self.plot_alt)
         layout.addLayout(sub_layout)
@@ -382,8 +378,8 @@ class MainWindow(QMainWindow):
         print('waiting for two clicks')
         self.last_clicks_array = []
         self.waiting_for_clicks = True
-        self.plot_hr.waiting_for_clicks = True
         self.plot_alt.waiting_for_clicks = True
+        self.plot_hr.waiting_for_clicks = True
         self.plot_hr.file_name = file_name
         self.plot_alt.file_name = file_name
         self.plot_hr.last_clicks_array = self.last_clicks_array
