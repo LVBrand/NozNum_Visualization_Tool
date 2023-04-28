@@ -4,7 +4,8 @@ Description : A simple interactive application to display a map with a marker an
 
 Author : Lucas BRAND
 '''
-
+import sys
+import os
 import folium
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
@@ -34,6 +35,11 @@ def TimeToSeconds(t):
     t_sec = timedelta(hours=t_strip.tm_hour,minutes=t_strip.tm_min,seconds=t_strip.tm_sec).total_seconds()
     return t_sec
 
+def TimeToHour(t):
+    t_txt = t.text[11:19]
+    return t_txt
+    #print('T_TXT : ', t_txt)
+
 # Generate a csv file from tcx
 def tcx_to_df(tcx_file_path):
     csv_line = []
@@ -47,6 +53,7 @@ def tcx_to_df(tcx_file_path):
     for trackpoint in trackTree.findall('TrainingCenterDatabase:Trackpoint', ns):
         if(trackpoint):
             time = trackpoint.find('TrainingCenterDatabase:Time', ns)
+            time_hours = TimeToHour(time)
             time_seconds = TimeToSeconds(time) # Pour transformer un temps du type "hh,mm,ss" en secondes
             position = trackpoint.find('TrainingCenterDatabase:Position', ns)
             latitude = position.find('TrainingCenterDatabase:LatitudeDegrees', ns)
@@ -55,10 +62,10 @@ def tcx_to_df(tcx_file_path):
             distance = trackpoint.find('TrainingCenterDatabase:DistanceMeters', ns)
             hr = trackpoint.find('TrainingCenterDatabase:HeartRateBpm', ns)
             hr_val = hr.find('TrainingCenterDatabase:Value', ns)
-            csv_line = [time.text, time_seconds , latitude.text, longitude.text, altitude.text, distance.text, hr_val.text]
+            csv_line = [time.text, time_hours, time_seconds , latitude.text, longitude.text, altitude.text, distance.text, hr_val.text]
             all_items.append(csv_line)
     df = pd.DataFrame(all_items, columns=[
-        'time','time_in_seconds','latitude','longitude','altitude', 'distance', 'heart_rate'],
+        'time','time_in_hours','time_in_seconds','latitude','longitude','altitude', 'distance', 'heart_rate'],
         dtype=float)
     return df
 
@@ -88,7 +95,8 @@ def AxesNames(data, ax):
             'alt' : data.alt,
             'dt' : data.dt,
             't' : data.t,
-            'ts' : data.ts
+            'ts' : data.ts,
+            'th' : data.th
         }
         return axes_dict.get(ax, "No info available")
     else:
@@ -106,11 +114,13 @@ class Data():
         self.df = df
         if not (self.df.empty):
             self.t = self.df['time'] # full date time
+            self.th = self.df['time_in_hours']
             self.ts = self.df['time_in_seconds']
             self.lat = self.df['latitude']
             self.lon = self.df['longitude']
             self.alt = self.df['altitude']
             self.hr = self.df['heart_rate']
+            self.dist = self.df['distance']
             self.dt = self.ts - self.ts[0] # time in seconds that starts at 0 second
             self.start_loc = [self.lat.iloc[0], self.lon.iloc[0]]
             self.end_loc = [self.lat.iloc[-1], self.lon.iloc[-1]]
@@ -155,7 +165,7 @@ class MapWidget(QWebEngineView):
 ##~##~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##
 
 class MplCanvas(FigureCanvasQTAgg):
-    def __init__(self, parent=None, width=5, height=4, dpi=100, map_instance=None, zoom_slider_instance=None, data=None, x='lon',y='lat', x_label='Longitude (degrees °)', y_label='Latitude (degrees °)', line_color='-ro', last_clicks_array=None, waiting_for_clicks=False, file_name=None):
+    def __init__(self, parent=None, width=5, height=4, dpi=100, map_instance=None, zoom_slider_instance=None, data=None, x='lon',y='lat', x_label='Longitude (degrees °)', y_label='Latitude (degrees °)', line_color='-ro', last_clicks_array=None, waiting_for_clicks=False, file_name=None, confirm_fct=None):
         self.fig = Figure(figsize=(width, height), dpi=dpi)
         self.axes = self.fig.add_subplot(111)
         super(MplCanvas, self).__init__(self.fig)
@@ -168,6 +178,7 @@ class MplCanvas(FigureCanvasQTAgg):
         self.axes.set_xlabel(x_label)
         self.axes.set_ylabel(y_label)
 
+        self.confirm_fct = confirm_fct
         self.file_name = file_name
         self.last_clicks_array = last_clicks_array
         self.waiting_for_clicks = waiting_for_clicks
@@ -184,11 +195,28 @@ class MplCanvas(FigureCanvasQTAgg):
         xi = sel.target[0]
         vertical_line = self.axes.axvline(xi, color='red', ls=':', lw=1)
         sel.extras.append(vertical_line)
-        y1 = np.interp(xi, self.x, self.y)
+        y1 = np.interp(xi, self.x, self.y) # interpolate the points (maybe not necessary)
+        # print('xi: ', xi) # max 2632.0
+        # print('last elem : ', self.data.dt.tail(1).index[0])
 
-        # values on the y axis are interpolated !
-        annotation_str = f'{self.axes.get_xlabel()}: {xi}\n{self.axes.get_ylabel()}: {y1}'
-        #annotation_str = f'Time: {self.data.dt[xi]} seconds\nHeart rate: {self.data.hr[xi]} bpm\nAltitude: {self.data.alt[xi]} meters'
+        # Closest value to the clicked point (xi)
+        df_closest = self.data.df.iloc[(self.data.dt-xi).abs().argsort()[:1]]
+        closest_val = df_closest['time_in_seconds'].values[0]
+        dt = closest_val - self.data.ts[0] 
+        result_df = self.data.dt.loc[self.data.dt == dt]
+        if not result_df.empty:
+            closest_index = result_df.index[0]
+            closest_y = self.y[closest_index]
+            t_hours = self.data.th[closest_index]
+            dist_from_start = self.data.dist[closest_index]
+        else:
+            t_hours = self.data.th.iloc[-1]
+            closest_y = self.y[closest_index]
+            dist_from_start = self.data.dist.iloc[-1]
+        
+        # annotation_str = f'{self.axes.get_xlabel()}: {xi}\n{self.axes.get_ylabel()}: {y1}\nTime (hours): {t_hours}' # this one is with interpolation
+        # annotation_str = f'Time: {self.data.dt[xi]} seconds\nHeart rate: {self.data.hr[xi]} bpm\nAltitude: {self.data.alt[xi]} meters'
+        annotation_str = f'{self.axes.get_xlabel()}: {dt}\n{self.axes.get_ylabel()}: {closest_y}\nTime (hours): {t_hours}\nDistance from start: {dist_from_start} meters'
         sel.annotation.set_text(annotation_str)
 
     # Function to click on a point and get its data
@@ -200,6 +228,7 @@ class MplCanvas(FigureCanvasQTAgg):
             point_alt = self.data.alt[ind]
             point_dt = self.data.dt[ind]
             print(f"Clicked on point {self.data.marker_coord}")
+            print(f"Distance from start: {self.data.dist[ind]} meters")
             # print(f"Heart rate is {point_hr} bpm at time {point_dt} seconds")
             # print(f"Altitude is {point_alt} meters at time {point_dt} seconds")
             self.map_instance.update_map(self.data, zoom_level=self.zoom_slider_instance.slider.value())
@@ -217,12 +246,25 @@ class MplCanvas(FigureCanvasQTAgg):
     # saves the data between the two selected point to a pandas dataframe then to a csv file
     def save_selected_points_to_csv(self, id_1, id_2):
         print('Saving data to csv')
+
+        # Compute participant speed on the segmented part
+        #dist = max(self.data.dist[id_1], self.data.dist[id_2]) - min(self.data.dist[id_1], self.data.dist[id_2])
+        dist = abs(self.data.dist[id_1] - self.data.dist[id_2])
+        print('DIST : ', dist, 'meters')
+        dt = abs(self.data.dt[id_1] - self.data.dt[id_2])
+        print('DT : ', dt, 'seconds')
+        speed = dist / dt
+        # ISSUE : The distances data are broken for some reason. A kilometer is around 47 meters according to the data...
+
         # Make a subdataframe with the data between the two selected points of the main dataframe 
         sub_data = self.data.df.loc[id_1:id_2] 
         df = pd.DataFrame(sub_data)
         df['label'] = self.file_name
-        print("Selected Dataframe: \n", df)
+        df['speed'] = speed
+        #print("Selected Dataframe: \n", df)
         df.to_csv(self.file_name+'.csv') # Save the subdataframe to a csv file
+        self.confirm_fct(text=self.file_name) # Call the confirm function to update the main dataframe
+
                     
 
 ##~##~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##
@@ -309,16 +351,27 @@ class MainWindow(QMainWindow):
         popup = QDialog(self)
         popup.setWindowTitle("Enter Data Label")
         popup.setGeometry(200, 200, 400, 100)
+        layout = QVBoxLayout()
+
+        x = self.geometry().center().x() - popup.geometry().center().x()
+        y = self.geometry().center().y() - popup.geometry().center().y()
+        popup.move(x,y)
 
         # Add a line edit widget for text input
         self.lineEdit = QLineEdit(popup)
         self.lineEdit.setGeometry(10, 10, 380, 30)
+        self.lineEdit.setGeometry(0, 0, 380, 30)
+        self.lineEdit.setPlaceholderText("Enter Data Label")
 
         # Add a confirm button to close the popup and return the text
         confirmButton = QPushButton("Confirm", popup)
         confirmButton.setGeometry(10, 50, 200, 30)
         confirmButton.clicked.connect(lambda: self.on_confirm(popup))
         confirmButton.clicked.connect(lambda: self.wait_for_two_clicks(self.next_data_label))
+        
+        layout.addWidget(self.lineEdit)
+        layout.addWidget(confirmButton)
+        layout.setAlignment(Qt.AlignCenter)
         popup.exec_()
 
     # Confirm button callback function
@@ -328,6 +381,50 @@ class MainWindow(QMainWindow):
         print("Input Text:", self.next_data_label) # Print the input text to the terminal
         popup.close() # Close the popup window
         return self.next_data_label
+    
+    # Popup after saving data from selected points
+    def save_confirm(self, text):
+        popup = QDialog(self)
+        popup.setWindowTitle("Data saved successfully")
+        popup.setGeometry(200, 200, 400, 100)
+
+        layout = QVBoxLayout()
+        
+        current_file = os.path.abspath(sys.argv[0])
+        current_dir = os.path.dirname(current_file)
+
+        fulltext = "Data saved successfully to " + current_dir + text + ".csv."
+        label = QLabel(fulltext, popup)
+        label.setWordWrap(True)
+
+        label_width = label.sizeHint().width()
+        label_height = label.sizeHint().height()
+        max_width = self.frameGeometry().width() - 10
+        if label_width > max_width:
+            label_width = max_width
+        
+        popup.resize(label_width + 20, label_height + 100)
+
+        # Center the popup window
+        x = self.geometry().center().x() - popup.geometry().center().x()
+        y = self.geometry().center().y() - popup.geometry().center().y()
+        popup.move(x,y)
+
+        # Add a confirm button to close the popup
+        confirmButton = QPushButton("Confirm", popup)
+        confirmButton.setGeometry(0, 0, 200, 30)
+        confirmButton.move(label.x(), label.height() + 20)
+        confirmButton.setParent(popup)
+
+        # Confirm button callback function
+        confirmButton.clicked.connect(lambda: popup.close())
+
+        layout.addWidget(label)
+        layout.addWidget(confirmButton)
+        layout.setAlignment(Qt.AlignCenter)
+        popup.setLayout(layout)
+        popup.exec_()
+
 
     # Open a dialog to load .tcx data file
     def dialog(self): # technically updates Data class
@@ -358,8 +455,10 @@ class MainWindow(QMainWindow):
     
     # Generate two plots objects and add them to their layout
     def plot_data(self, data, layout, web_view, zoom_slider):
-        self.plot_hr = MplCanvas(self, width=5, height=4, dpi=100, map_instance=web_view, data=data, zoom_slider_instance=zoom_slider, x='dt', y='hr', x_label='Time (seconds)', y_label='Heart Rate (bpm)', line_color='-ro', last_clicks_array=self.last_clicks_array, waiting_for_clicks=self.waiting_for_clicks, file_name=self.next_data_label)
-        self.plot_alt = MplCanvas(self, width=5, height=4, dpi=100, map_instance=web_view, data=data, zoom_slider_instance=zoom_slider, x='dt', y='alt', x_label='Time (seconds)', y_label='Altitude (meters)', line_color='-bo', last_clicks_array=self.last_clicks_array, waiting_for_clicks=self.waiting_for_clicks, file_name=self.next_data_label)
+        self.plot_hr = MplCanvas(self, width=5, height=4, dpi=100, map_instance=web_view, data=data, zoom_slider_instance=zoom_slider, x='dt', y='hr', x_label='Time (seconds)', y_label='Heart Rate (bpm)',
+                                  line_color='-ro', last_clicks_array=self.last_clicks_array, waiting_for_clicks=self.waiting_for_clicks, file_name=self.next_data_label, confirm_fct=self.save_confirm)
+        self.plot_alt = MplCanvas(self, width=5, height=4, dpi=100, map_instance=web_view, data=data, zoom_slider_instance=zoom_slider, x='dt', y='alt', x_label='Time (seconds)', y_label='Altitude (meters)',
+                                   line_color='-bo', last_clicks_array=self.last_clicks_array, waiting_for_clicks=self.waiting_for_clicks, file_name=self.next_data_label, confirm_fct=self.save_confirm)
         
         self.select_data_button = QPushButton('Select Data From Plot')
         self.select_data_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
@@ -385,6 +484,7 @@ class MainWindow(QMainWindow):
         self.plot_hr.last_clicks_array = self.last_clicks_array
         self.plot_alt.last_clicks_array = self.last_clicks_array
 
+
     # Removes widgets from a layout. Used to clear old widgets when we load new data
     def remove_widgets_from_layout(self, layout):
         if layout is not None:
@@ -393,6 +493,13 @@ class MainWindow(QMainWindow):
                 widget = item.widget()
                 if widget is not None:
                     widget.deleteLater()
+
+    # rajouter heure + distance sur courbe
+    # calculer vitesse moyenne et vitesse entre deux points pour comparer
+    # text 250 mots sur le dev de l'app
+    # Mercredi envoyer la version mac+win
+    
+    
 
             
 ##~##~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##
