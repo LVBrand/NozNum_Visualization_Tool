@@ -78,6 +78,7 @@ If you don't want to use the given conda environment, you can install the packag
 - PyQt5 Web Engine : `pip install PyQtWebEngine`
 - ElementTree : `pip install elementpath`
 - Matplotlib : `pip install matplotlib`
+- Mplcursors : `pip install mplcursors`
 
 # Create a new executable for the application
 If you want to make a new executable from your modified version of the program, you can use `pyinstaller` (How to install : `pip install pyinstaller`).  
