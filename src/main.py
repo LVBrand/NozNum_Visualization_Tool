@@ -425,7 +425,7 @@ class MainWindow(QMainWindow):
         popup.setLayout(layout)
         popup.exec_()
 
-
+    
     # Open a dialog to load .tcx data file
     def dialog(self): # technically updates Data class
         tcx_file_path , check = QFileDialog.getOpenFileName(None, "QFileDialog.getOpenFileName()",
