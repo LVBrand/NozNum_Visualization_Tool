@@ -208,11 +208,11 @@ class MplCanvas(FigureCanvasQTAgg):
             closest_index = result_df.index[0]
             closest_y = self.y[closest_index]
             t_hours = self.data.th[closest_index]
-            dist_from_start = self.data.dist[closest_index]
+            dist_from_start = round(self.data.dist[closest_index], 2)
         else:
             t_hours = self.data.th.iloc[-1]
             closest_y = self.y[closest_index]
-            dist_from_start = self.data.dist.iloc[-1]
+            dist_from_start = round(self.data.dist.iloc[-2], 2)
         
         # annotation_str = f'{self.axes.get_xlabel()}: {xi}\n{self.axes.get_ylabel()}: {y1}\nTime (hours): {t_hours}' # this one is with interpolation
         # annotation_str = f'Time: {self.data.dt[xi]} seconds\nHeart rate: {self.data.hr[xi]} bpm\nAltitude: {self.data.alt[xi]} meters'
@@ -393,7 +393,7 @@ class MainWindow(QMainWindow):
         current_file = os.path.abspath(sys.argv[0])
         current_dir = os.path.dirname(current_file)
 
-        fulltext = "Data saved successfully to " + current_dir + text + ".csv."
+        fulltext = "Data saved successfully to " + current_dir + "\ " + text + ".csv."
         label = QLabel(fulltext, popup)
         label.setWordWrap(True)
 

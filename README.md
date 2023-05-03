@@ -42,12 +42,27 @@ Then, a dialog window will appear as shown on the picture bellow and you'll have
 The picture bellow shows what the window will look like after you've successfully loaded your data.  
 ![](images/step_5.png)  
 The first part of the application is dedicated to the Folium Map generated from OpenStreetMap. It creates a route from the GPS data collected from the smartwatch and automatically plots it to a folium map. The application automatically centers the map so we can see the whole route.  
-On the right side of the map, you can use the cursor to manage the zoom level of the map. It is, by default, set to *13*.  
+On the right side of the map, you can use the cursor to manage the zoom level of the map (see the picture bellow). It is, by default, set to *13*.  
+![](images/step_6.png)
 Beneath the map, two plots are generated :
 - The first curve (red) represents the heart rate (in bpm) as a function of time (seconds).
 - The second curve (blue) represents the altitude (meters) as a function of time (seconds).  
 
 You can also click on any dots of the curves and it will quickly reload the map and create a marker on the position corresponding to the data dot you've clicked on.
+
+Hovering your mouse on any points of the plots displays an annotation in which are written the point's specific data like shown on the following picture.
+![](images/step_7.png)
+
+
+### 5. Save data between two points
+It is possible to save into a `.csv` file the data contained between two points. To do so, you need to click on the button `Select Data From Plot` at the bottom of the window like shown on the picture below. 
+![](images/step_8.png)
+
+After clicking on the button, a popup window will open as shown in the following picture in which you must enter the label of the sub-dataset you want to save.
+![](images/step_9.png)
+Then, after entering your label, you need to click on the `Confirm` button to close the popup.
+
+The program will then record the data contained between the next two clicks you make on the curve. After you clicked on the two selected points, a pop-up window will then open showing the path to the newly created `.csv` file.
 
 
 # Installation 
