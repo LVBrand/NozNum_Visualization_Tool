@@ -165,7 +165,8 @@ class MapWidget(QWebEngineView):
 ##~##~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##
 
 class MplCanvas(FigureCanvasQTAgg):
-    def __init__(self, parent=None, width=5, height=4, dpi=100, map_instance=None, zoom_slider_instance=None, data=None, x='lon',y='lat', x_label='Longitude (degrees °)', y_label='Latitude (degrees °)', line_color='-ro', last_clicks_array=None, waiting_for_clicks=False, file_name=None, confirm_fct=None):
+    def __init__(self, parent=None, width=5, height=4, dpi=100, map_instance=None, zoom_slider_instance=None, data=None, x='lon',y='lat', x_label='Longitude (degrees °)',
+                  y_label='Latitude (degrees °)', line_color='-ro', last_clicks_array=None, waiting_for_clicks=False, file_name=None, confirm_fct=None, tab_name=None):
         self.fig = Figure(figsize=(width, height), dpi=dpi)
         self.axes = self.fig.add_subplot(111)
         super(MplCanvas, self).__init__(self.fig)
@@ -173,6 +174,7 @@ class MplCanvas(FigureCanvasQTAgg):
         self.zoom_slider_instance = zoom_slider_instance
         self.data = data
         self.line_color = line_color
+        self.tab_name = tab_name
         self.x = AxesNames(self.data, x)
         self.y = AxesNames(self.data, y)
         self.axes.set_xlabel(x_label)
@@ -263,6 +265,12 @@ class MplCanvas(FigureCanvasQTAgg):
         df['speed'] = speed
         #print("Selected Dataframe: \n", df)
         df.to_csv(self.file_name+'.csv') # Save the subdataframe to a csv file
+
+        # to do 
+        # save in a unique csv file, the stats of the current label dataset
+        # Use a generic function that saves into that specific csv file the stats of the dataset
+        # we need the id of the participant though
+        
         self.confirm_fct(text=self.file_name) # Call the confirm function to update the main dataframe
 
                     
@@ -322,6 +330,9 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(self.window_width, self.window_height)
         # self.showMaximized()
 
+        # Tab Widget
+        # self.tab_Widget = QTabWidget()
+
         # central widget
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
@@ -336,15 +347,22 @@ class MainWindow(QMainWindow):
         self.lay_main.addLayout(self.lay_plots)
    
         # TCX Load button
-        load_button_action = QAction("&Load data from .tcx", self)
-        load_button_action.setShortcut("Ctrl+O")
-        load_button_action.setStatusTip('Load data from a .tcx file [Ctrl+O]')
-        load_button_action.triggered.connect(self.dialog)
+        load_tcx_button_action = QAction("&Load data from .tcx", self)
+        load_tcx_button_action.setShortcut("Ctrl+O")
+        load_tcx_button_action.setStatusTip('Load data from a .tcx file [Ctrl+O]')
+        load_tcx_button_action.triggered.connect(self.dialog_tcx)
+
+        # CSV Load Button
+        load_csv_button_action = QAction("&Load data from .csv", self)
+        load_csv_button_action.setShortcut("Ctrl+P")
+        load_csv_button_action.setStatusTip('Load data from a .csv file [Ctrl+P]')
+        load_csv_button_action.triggered.connect(self.dialog_csv)
 
         # Main Menu
         main_menu = self.menuBar()
         file_menu = main_menu.addMenu('&Load Data')
-        file_menu.addAction(load_button_action)
+        file_menu.addAction(load_tcx_button_action)
+        file_menu.addAction(load_csv_button_action)
 
     # Opens a popup window
     def open_popup(self):
@@ -427,13 +445,24 @@ class MainWindow(QMainWindow):
 
     
     # Open a dialog to load .tcx data file
-    def dialog(self): # technically updates Data class
+    def dialog_tcx(self): # technically updates Data class
+        # tcx_file_path , check = QFileDialog.getOpenFileName(None, "QFileDialog.getOpenFileName()",
+        #                                         "", "tcx Files (*.tcx);;All Files (*);;Python Files (*.py);;Text Files (*.txt)")
         tcx_file_path , check = QFileDialog.getOpenFileName(None, "QFileDialog.getOpenFileName()",
-                                                "", "All Files (*);;Python Files (*.py);;Text Files (*.txt)")
+                                                            "", "tcx Files (*.tcx)")
         if check:
             df = tcx_to_df(tcx_file_path)
+            # df['Label'] = 'participant01
             self.load_data(data_frame = df, layout_map=self.lay_map, layout_plot=self.lay_plots)
             # print(df)
+    
+    # Open a dialog to load .csv data file
+    def dialog_csv(self): # technically updates Data class
+        csv_file_path , check = QFileDialog.getOpenFileName(None, "QFileDialog.getOpenFileName()",
+                                                            "", "csv files (*.csv)")
+        if check:
+            df = pd.read_csv(csv_file_path)
+            self.load_data(data_frame = df, layout_map=self.lay_map, layout_plot=self.lay_plots)
 
     # Remove old widgets, load new data and create new map and plots widgets
     def load_data(self, data_frame, layout_map, layout_plot):
