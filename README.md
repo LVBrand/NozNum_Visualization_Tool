@@ -31,6 +31,8 @@ After launching the *NozNumApp.exe* file, the window shown on the image bellow w
 To load data, you simply click on the *Load Data* button on the top-left side of the window (Or press `CTRL + o`).
 ![](images/step_3.png)  
 
+**Update v1.2** : It is now possible to load data from a csv file.
+
 
 
 ### 3. Select the desired file in the dialog window  
@@ -55,14 +57,21 @@ Hovering your mouse on any points of the plots displays an annotation in which a
 
 
 ### 5. Save data between two points
-It is possible to save into a `.csv` file the data contained between two points. To do so, you need to click on the button `Select Data From Plot` at the bottom of the window like shown on the picture below. 
+It is possible to save into a `.csv` file the data contained between two points. To do so, you need to click on the button **Select Data From Plot** at the bottom of the window like shown on the picture below. 
 ![](images/step_8.png)
 
 After clicking on the button, a popup window will open as shown in the following picture in which you must enter the label of the sub-dataset you want to save.
 ![](images/step_9.png)
-Then, after entering your label, you need to click on the `Confirm` button to close the popup.
+Then, after entering your label, you need to click on the **Confirm** button to close the popup.
 
 The program will then record the data contained between the next two clicks you make on the curve. After you clicked on the two selected points, a pop-up window will then open showing the path to the newly created `.csv` file.
+
+### 6. Statistics and saved data
+The first time you save data between two points with the **Select Data From Plot** button, a new file is created : `stats.csv`
+
+This file stores few statistics from your saved data files. Each row corresponds to a file. Each column corresponds respectively to the data file's **label**, **average heart rate** (in bpm), **average speed** (in meters/second), **route duration** (in hours::minutes::seconds) and **distance** (in meters) from the first point of the dataset to the last.
+
+The statistics file and any data files you create are stored in the same directory as the executable file (`NozNumApp.exe`). Only one instance of `stats.csv` exists, unlike the labeled data files that are all generated in distinct files.
 
 
 # Installation 
