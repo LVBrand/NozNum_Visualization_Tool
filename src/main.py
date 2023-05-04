@@ -1,6 +1,6 @@
 '''
 Project : Noz'Num
-Description : A simple interactive application to display a map with a marker and graphs with the data from a tcx file
+Description : A simple interactive software to display a map with a marker and graphs with the data from a tcx file
 
 Author : Lucas BRAND
 '''
@@ -25,8 +25,8 @@ import mplcursors
 import platform
 
 
+# Return the operating system path separator
 def get_os_separator():
-    # Return the operating system path separator
     if platform.system() == 'Windows':
         # use "\\" as path separator on Windows
         os_separator = '\\'
@@ -42,6 +42,47 @@ def get_os_separator():
     else:
         # unrecognized platform
         raise OSError('Unrecognized operating system')
+
+
+##~##~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##
+#~##~~ STATISTICS ~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##
+##~##~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##
+
+# Calculate statistics from a dataframe
+def compute_stats(df, label):
+    # Calculate the average heart rate
+    avg_hr = df['heart_rate'].mean()
+
+    # Calculate the average speed
+    total_dist = df['distance'].max() - df['distance'].min()
+    total_time = df['time_in_seconds'].max() - df['time_in_seconds'].min()
+    avg_speed = total_dist / total_time # meters/seconds
+
+    # Calculate the time of the activity
+    time_s = df['time_in_seconds'].max() - df['time_in_seconds'].min()
+    hours = time_s // 3600
+    minutes = (time_s % 3600) // 60
+    seconds = time_s % 60
+    route_duration = "{:02}:{:02}:{:02}".format(int(hours), int(minutes), int(seconds))
+
+    # Calculate the distance of the route
+    distance = df['distance'].max() # We don't use the last value, which would be logically right, because it is sometimes at 0 meters for obscure reasons...
+
+    # create a stats dataframe
+    stats_df = pd.DataFrame([[label, avg_hr, avg_speed, route_duration, distance]], columns=['label', 'avg_hr', 'avg_speed', 'route_duration', 'distance'])
+    return stats_df
+
+# Save statistics in the dedicated stats csv file
+def save_stats(csv_file_path, stats_df):
+    # check if  the csv file already exists
+    
+    if os.path.isfile(csv_file_path):
+        # if it exists, we append the data to the file
+        stats_df.to_csv(csv_file_path, mode='a', header=False)
+    else:
+        # if it doesn't exist, we create the file and add the data
+        stats_df.to_csv(csv_file_path, mode='w', header=True)
+
 
 
 
@@ -106,6 +147,7 @@ def GenerateMap(data_object, zoom_level=13):
         return map
     else:
         pass
+
 
 def AxesNames(data, ax):
     if not (data.df.empty):
@@ -290,12 +332,20 @@ class MplCanvas(FigureCanvasQTAgg):
         current_dir = os.path.dirname(current_file)
         os_separator = get_os_separator()
         file_path = current_dir+os_separator+self.file_name+'.csv'
+        stats_file_path = current_dir+os_separator+'stats.csv'
         df.to_csv(file_path) # Save the subdataframe to a csv file
+
+        # compute stats of the current label dataset
+        stats_df = compute_stats(df, self.file_name)
+        # save the stats of the current label dataset
+        save_stats(stats_file_path, stats_df)
 
         # to do 
         # save in a unique csv file, the stats of the current label dataset
         # Use a generic function that saves into that specific csv file the stats of the dataset
         # we need the id of the participant though
+
+
         
         # self.confirm_fct(text=self.file_name) # Call the confirm function to update the main dataframe
         self.confirm_fct(text=file_path) # Call the confirm function to update the main dataframe
@@ -391,6 +441,17 @@ class MainWindow(QMainWindow):
         file_menu.addAction(load_tcx_button_action)
         file_menu.addAction(load_csv_button_action)
 
+    """
+    Quick note about the 'popup' functions:
+
+    The popup functions (open_popup(), on_confirm() and save_confirm()) are used to open a popup window to ask the user to enter a data label.
+    It opens when the user clicks on the 'Select Data from Plot' button.
+    Then, the user enters a label and clicks on the 'Confirm' button.
+    The user needs to select two points on a plot by clicking on them which will make a new popup appear.
+    The last popup will tell the user that the data between the two points he selected and labeled are saved into a csv.
+    Statistics are also computed and saved into a unique csv that contains all the statistics for all the saved dataframes.
+    """
+
     # Opens a popup window
     def open_popup(self):
         popup = QDialog(self)
@@ -439,7 +500,7 @@ class MainWindow(QMainWindow):
         current_dir = os.path.dirname(current_file)
 
         # fulltext = "Data saved successfully to " + current_dir + "\ " + text + ".csv."
-        fulltext = "Data saved successfully to " + text
+        fulltext = "Data saved successfully to " + text + ". \n" + "Data statistics has been saved to " + current_dir + get_os_separator() + "stats.csv."
         label = QLabel(fulltext, popup)
         label.setWordWrap(True)
 
@@ -470,9 +531,8 @@ class MainWindow(QMainWindow):
         layout.setAlignment(Qt.AlignCenter)
         popup.setLayout(layout)
         popup.exec_()
-
     
-    # Open a dialog to load .tcx data file
+    # Open a dialog window to load .tcx data file
     def dialog_tcx(self): # technically updates Data class
         # tcx_file_path , check = QFileDialog.getOpenFileName(None, "QFileDialog.getOpenFileName()",
         #                                         "", "tcx Files (*.tcx);;All Files (*);;Python Files (*.py);;Text Files (*.txt)")
@@ -484,7 +544,7 @@ class MainWindow(QMainWindow):
             self.load_data(data_frame = df, layout_map=self.lay_map, layout_plot=self.lay_plots)
             # print(df)
     
-    # Open a dialog to load .csv data file
+    # Open a dialog window to load .csv data file
     def dialog_csv(self): # technically updates Data class
         csv_file_path , check = QFileDialog.getOpenFileName(None, "QFileDialog.getOpenFileName()",
                                                             "", "csv files (*.csv)")
@@ -550,13 +610,6 @@ class MainWindow(QMainWindow):
                 widget = item.widget()
                 if widget is not None:
                     widget.deleteLater()
-
-    # rajouter heure + distance sur courbe
-    # calculer vitesse moyenne et vitesse entre deux points pour comparer
-    # text 250 mots sur le dev de l'app
-    # Mercredi envoyer la version mac+win
-    
-    
 
             
 ##~##~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##
