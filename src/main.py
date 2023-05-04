@@ -22,6 +22,27 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 import numpy as np
 import mplcursors
+import platform
+
+
+def get_os_separator():
+    # Return the operating system path separator
+    if platform.system() == 'Windows':
+        # use "\\" as path separator on Windows
+        os_separator = '\\'
+        return os_separator
+    elif platform.system() == 'Darwin':
+        # use "/" as path separator on macOS
+        os_separator = '/'
+        return os_separator
+    elif platform.system() == 'Linux':
+        # use "/" as path separator on Linux
+        os_separator = '/'
+        return os_separator
+    else:
+        # unrecognized platform
+        raise OSError('Unrecognized operating system')
+
 
 
 ##~##~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##
@@ -264,14 +285,20 @@ class MplCanvas(FigureCanvasQTAgg):
         df['label'] = self.file_name
         df['speed'] = speed
         #print("Selected Dataframe: \n", df)
-        df.to_csv(self.file_name+'.csv') # Save the subdataframe to a csv file
+
+        current_file = os.path.abspath(sys.argv[0])
+        current_dir = os.path.dirname(current_file)
+        os_separator = get_os_separator()
+        file_path = current_dir+os_separator+self.file_name+'.csv'
+        df.to_csv(file_path) # Save the subdataframe to a csv file
 
         # to do 
         # save in a unique csv file, the stats of the current label dataset
         # Use a generic function that saves into that specific csv file the stats of the dataset
         # we need the id of the participant though
         
-        self.confirm_fct(text=self.file_name) # Call the confirm function to update the main dataframe
+        # self.confirm_fct(text=self.file_name) # Call the confirm function to update the main dataframe
+        self.confirm_fct(text=file_path) # Call the confirm function to update the main dataframe
 
                     
 
@@ -411,7 +438,8 @@ class MainWindow(QMainWindow):
         current_file = os.path.abspath(sys.argv[0])
         current_dir = os.path.dirname(current_file)
 
-        fulltext = "Data saved successfully to " + current_dir + "\ " + text + ".csv."
+        # fulltext = "Data saved successfully to " + current_dir + "\ " + text + ".csv."
+        fulltext = "Data saved successfully to " + text
         label = QLabel(fulltext, popup)
         label.setWordWrap(True)
 
