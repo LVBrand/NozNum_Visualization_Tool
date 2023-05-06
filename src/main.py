@@ -49,27 +49,60 @@ def get_os_separator():
 ##~##~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##~~~~~~~~~~~~~~~~~~~~~~~~~~##~##
 
 # Calculate statistics from a dataframe
-def compute_stats(df, label):
+def compute_stats(df, label, global_file_name, global_file_dir, global_df):
     # Calculate the average heart rate
     avg_hr = df['heart_rate'].mean()
+    global_avg_hr = global_df['heart_rate'].mean()
+
+    # Calculate the standard deviation of the heart rate
+    std_hr = df['heart_rate'].std() # écart type
+    global_std_hr = global_df['heart_rate'].std() 
+
+    # Calculate the average altitude
+    avg_alt = df['altitude'].mean()
+    global_avg_alt = global_df['altitude'].mean()
+
+    # Calulcate the standard deviation of the altitude
+    std_alt = df['altitude'].std() # écart type
+    global_std_alt = global_df['altitude'].std()
 
     # Calculate the average speed
     total_dist = df['distance'].max() - df['distance'].min()
     total_time = df['time_in_seconds'].max() - df['time_in_seconds'].min()
     avg_speed = total_dist / total_time # meters/seconds
 
-    # Calculate the time of the activity
+    # Calculate the average speed of the global file
+    global_total_dist = global_df['distance'].max()
+    global_total_time = global_df['time_in_seconds'].max()
+    global_avg_speed = global_total_dist / global_total_time
+
+    # Calculate the standard deviation of the speed
+    std_speed = df['speed'].std() # écart type 
+    global_std_speed = global_df['speed'].std() # écart type
+
+    # Calculate the time of the activity                     
     time_s = df['time_in_seconds'].max() - df['time_in_seconds'].min()
     hours = time_s // 3600
     minutes = (time_s % 3600) // 60
     seconds = time_s % 60
     route_duration = "{:02}:{:02}:{:02}".format(int(hours), int(minutes), int(seconds))
 
+    # Calculate the time of the global activity
+    global_time_s = global_df['time_in_seconds'].max() 
+    global_hours = global_time_s // 3600
+    global_minutes = (global_time_s % 3600) // 60
+    global_seconds = global_time_s % 60
+    global_route_duration = "{:02}:{:02}:{:02}".format(int(global_hours), int(global_minutes), int(global_seconds))
+
     # Calculate the distance of the route
     distance = df['distance'].max() # We don't use the last value, which would be logically right, because it is sometimes at 0 meters for obscure reasons...
+    global_distance = global_df['distance'].max()
 
     # create a stats dataframe
-    stats_df = pd.DataFrame([[label, avg_hr, avg_speed, route_duration, distance]], columns=['label', 'avg_hr', 'avg_speed', 'route_duration', 'distance'])
+    stats_df = pd.DataFrame([[global_file_dir, global_file_name, label, avg_hr, std_hr, avg_alt, std_alt, avg_speed, std_speed, route_duration, distance,
+                              global_avg_hr, global_std_hr, global_avg_alt, global_std_alt, global_avg_speed, global_std_speed, global_route_duration, global_distance]], 
+                            columns=['paricipant_number', 'dataset_number', 'label', 'avg_heart_rate','std_heart_rate','avg_altitude','std_altitude', 'avg_speed','std_speed', 'route_duration', 'distance',
+                                     'global_avg_heart_rate','global_std_heart_rate','global_avg_altitude','global_std_altitude', 'global_avg_speed','global_std_speed', 'global_route_duration', 'global_distance'])
     return stats_df
 
 # Save statistics in the dedicated stats csv file
@@ -124,10 +157,12 @@ def tcx_to_df(tcx_file_path):
             distance = trackpoint.find('TrainingCenterDatabase:DistanceMeters', ns)
             hr = trackpoint.find('TrainingCenterDatabase:HeartRateBpm', ns)
             hr_val = hr.find('TrainingCenterDatabase:Value', ns)
-            csv_line = [time.text, time_hours, time_seconds , latitude.text, longitude.text, altitude.text, distance.text, hr_val.text]
+            file_name = os.path.basename(tcx_file_path)
+            dir_name = os.path.dirname(tcx_file_path).split('/')[-1]
+            csv_line = [file_name, dir_name, time.text, time_hours, time_seconds , latitude.text, longitude.text, altitude.text, distance.text, hr_val.text]
             all_items.append(csv_line)
     df = pd.DataFrame(all_items, columns=[
-        'time','time_in_hours','time_in_seconds','latitude','longitude','altitude', 'distance', 'heart_rate'],
+        'file_name','dir_name','time','time_in_hours','time_in_seconds','latitude','longitude','altitude', 'distance', 'heart_rate'],
         dtype=float)
     return df
 
@@ -176,6 +211,8 @@ class Data():
         super().__init__()
         self.df = df
         if not (self.df.empty):
+            self.file_name = self.df['file_name']
+            self.dir_name = self.df['dir_name']
             self.t = self.df['time'] # full date time
             self.th = self.df['time_in_hours']
             self.ts = self.df['time_in_seconds']
@@ -321,30 +358,52 @@ class MplCanvas(FigureCanvasQTAgg):
         speed = dist / dt
         # ISSUE : The distances data are broken for some reason. A kilometer is around 47 meters according to the data...
 
+        # Compute global participant speed
+        global_dist = self.data.dist.max()
+        global_dt = self.data.dt.max()
+        global_speed = global_dist / global_dt
+        self.data.df['speed'] = global_speed
+
         # Make a subdataframe with the data between the two selected points of the main dataframe 
         sub_data = self.data.df.loc[id_1:id_2] 
         df = pd.DataFrame(sub_data)
         df['label'] = self.file_name
         df['speed'] = speed
+        df['file_name'] = self.file_name + '.csv'
         #print("Selected Dataframe: \n", df)
 
+        # Add to the subdataframes the data of the global data set (from which the subdataframes were extracted)
+        
+
+        # Current file name
         current_file = os.path.abspath(sys.argv[0])
+        print("## current file: ", current_file)
+
+        # Current directory
         current_dir = os.path.dirname(current_file)
+        print("## current dir: ", current_dir)
+
+        # Get the global DATA file name
+        global_data_file_name = self.data.file_name[0]
+        print("## global data file name: ", global_data_file_name)
+
+        # Get the global DATA dir name
+        global_data_dir_name = self.data.dir_name[0]
+        print("## global data dir name: ", global_data_dir_name)
+
+        # OS separator (Depending on the OS, the separator is not the same)
         os_separator = get_os_separator()
+
         file_path = current_dir+os_separator+self.file_name+'.csv'
         stats_file_path = current_dir+os_separator+'stats.csv'
-        df.to_csv(file_path) # Save the subdataframe to a csv file
+
+        # Save the subdataframe to a csv file
+        df.to_csv(file_path) 
 
         # compute stats of the current label dataset
-        stats_df = compute_stats(df, self.file_name)
+        stats_df = compute_stats(df, self.file_name, global_data_file_name, global_data_dir_name, global_df=self.data.df)
         # save the stats of the current label dataset
         save_stats(stats_file_path, stats_df)
-
-        # to do 
-        # save in a unique csv file, the stats of the current label dataset
-        # Use a generic function that saves into that specific csv file the stats of the dataset
-        # we need the id of the participant though
-
 
         
         # self.confirm_fct(text=self.file_name) # Call the confirm function to update the main dataframe
@@ -589,7 +648,7 @@ class MainWindow(QMainWindow):
 
         return self.plot_hr, self.plot_alt
     
-    # Wait for two clicks on the plots
+    # Wait for the user to click on two points on a plot
     def wait_for_two_clicks(self, file_name):
         print('waiting for two clicks')
         self.last_clicks_array = []
